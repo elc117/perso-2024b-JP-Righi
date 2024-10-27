@@ -70,7 +70,9 @@ executable perso-2024b-JP-Righi
     build-depends:    
         base ^>=4.17.2.1,
         gloss,
-        random
+        random,
+        time,
+        
 
     -- Directories containing source files.
     hs-source-dirs:   app

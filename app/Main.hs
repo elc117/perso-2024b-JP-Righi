@@ -1,5 +1,7 @@
 import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game
+import System.Random (randomRIO)
+import System.IO.Unsafe (unsafePerformIO)
 
 -- Define um tipo de estado do jogo para diferenciar entre o jogo em andamento, a tela de fim e a tela de escolha final
 data GameStatus = Playing | GameOver | EndScreen deriving (Eq)
@@ -13,6 +15,7 @@ data GameState = GameState
   , proximity :: Int
   , status :: GameStatus
   , selection :: Int  -- 0 para "Jogar Novamente", 1 para "Sair"
+  , restart :: Bool   -- Indica se o jogo deve reiniciar
   }
 
 -- Função para converter RGB para Gloss Color
@@ -32,6 +35,14 @@ calculateProximity :: (Int, Int, Int) -> (Int, Int, Int) -> Int
 calculateProximity (r1, g1, b1) (r2, g2, b2) =
   let diff = abs (r1 - r2) + abs (g1 - g2) + abs (b1 - b2)
   in max 0 (100 - diff * 100 `div` 765) -- valor entre 0 e 100
+
+-- Função para gerar uma nova cor aleatória
+generateRandomColor :: IO (Int, Int, Int)
+generateRandomColor = do
+    r <- randomRIO (0, 255)
+    g <- randomRIO (0, 255)
+    b <- randomRIO (0, 255)
+    return (r, g, b)
 
 -- Função de renderização do jogo
 renderGame :: GameState -> Picture
@@ -84,35 +95,48 @@ handleInput (EventKey (Char 'n') Down _ _) game
 handleInput (EventKey (SpecialKey KeyEnter) Down _ _) game
   | status game == Playing = game { guessMade = True, proximity = calculateProximity (targetColor game) (redValue game, greenValue game, blueValue game), status = GameOver }
   | status game == GameOver = game { status = EndScreen }
-  | status game == EndScreen = initialState  -- reiniciar o jogo
-  -- | status game == EndScreen && selection game == 1 = game { status = EndScreen }  -- fechar o jogo
+  | status game == EndScreen = 
+      unsafePerformIO $ do
+          newColor <- generateRandomColor
+          return game { targetColor = newColor, status = Playing, guessMade = False }  -- indicar que o jogo deve ser reiniciado
 handleInput (EventKey (SpecialKey KeyUp) Down _ _) game
   | status game == EndScreen = game { selection = 0 }  -- selecionar "Jogar Novamente"
 handleInput (EventKey (SpecialKey KeyDown) Down _ _) game
   | status game == EndScreen = game { selection = 1 }  -- selecionar "Sair"
 handleInput _ game = game
 
--- Inicialização do estado do jogo
-initialState :: GameState
-initialState = GameState
-  { targetColor = (255, 0, 0) -- Exemplo de cor alvo
-  , redValue = 127
-  , greenValue = 127
-  , blueValue = 127
-  , guessMade = False
-  , proximity = 0
-  , status = Playing
-  , selection = 0
-  }
+-- Inicialização do estado do jogo com valores aleatórios
+initialState :: IO GameState
+initialState = do
+  targetR <- randomRIO (0, 255)
+  targetG <- randomRIO (0, 255)
+  targetB <- randomRIO (0, 255)
+  return GameState
+    { targetColor = (targetR, targetG, targetB)
+    , redValue = 127
+    , greenValue = 127
+    , blueValue = 127
+    , guessMade = False
+    , proximity = 0
+    , status = Playing
+    , selection = 0
+    , restart = False
+    }
+
+-- Converte `initialState` com `unsafePerformIO` para reinicializar o jogo
+resetGameState :: GameState
+resetGameState = unsafePerformIO initialState
 
 -- Função main do jogo
 main :: IO ()
-main = play window backgroundColor fps initialState renderGame handleInput updateGame
+main = play window backgroundColor fps resetGameState renderGame handleInput updateGame
   where
     window = InWindow "Jogo de Adivinhar a Cor" (800, 600) (100, 100)
     backgroundColor = black
     fps = 60
 
--- Função de atualização (mantida simples, pois o jogo é controlado por eventos)
+-- Função de atualização que reinicia o jogo se necessário
 updateGame :: Float -> GameState -> GameState
-updateGame _ game = game
+updateGame _ game
+  | restart game = resetGameState  -- Reinicializa o estado se restart for True
+  | otherwise = game
