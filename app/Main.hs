@@ -1,32 +1,21 @@
 import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game
 
-uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
-uncurry3 f (x, y, z) = f x y z
+-- Define um tipo de estado do jogo para diferenciar entre o jogo em andamento, a tela de fim e a tela de escolha final
+data GameStatus = Playing | GameOver | EndScreen deriving (Eq)
 
--- Data to hold the game state
 data GameState = GameState
-  { redValue   :: Int
+  { targetColor :: (Int, Int, Int)
+  , redValue :: Int
   , greenValue :: Int
-  , blueValue  :: Int
-  , targetColor :: (Int, Int, Int)
-  , guessMade  :: Bool
-  , proximity  :: String
+  , blueValue :: Int
+  , guessMade :: Bool
+  , proximity :: Int
+  , status :: GameStatus
+  , selection :: Int  -- 0 para "Jogar Novamente", 1 para "Sair"
   }
 
--- Função para calcular a diferença entre duas cores
-colorDiff :: (Int, Int, Int) -> (Int, Int, Int) -> Float
-colorDiff (r1, g1, b1) (r2, g2, b2) = fromIntegral (abs (r1 - r2) + abs (g1 - g2) + abs (b1 - b2))
-
--- Função para determinar a proximidade
-evaluateProximity :: Float -> String
-evaluateProximity diff
-  | diff < 30  = "Muito perto!"
-  | diff < 100 = "Perto!"
-  | diff < 200 = "Longe!"
-  | otherwise  = "Muito longe!"
-
--- Function to convert RGB to Gloss Color
+-- Função para converter RGB para Gloss Color
 rgbColor :: Int -> Int -> Int -> Color
 rgbColor r g b = makeColorI r g b 255
 
@@ -38,46 +27,92 @@ toHex :: Int -> String
 toHex n = let hex = "0123456789ABCDEF"
           in [hex !! (n `div` 16), hex !! (n `mod` 16)]
 
--- Initial state of the game
-initialState :: GameState
-initialState = GameState 128 128 128 (255, 0, 0) False ""
+-- Função para calcular a proximidade entre duas cores
+calculateProximity :: (Int, Int, Int) -> (Int, Int, Int) -> Int
+calculateProximity (r1, g1, b1) (r2, g2, b2) =
+  let diff = abs (r1 - r2) + abs (g1 - g2) + abs (b1 - b2)
+  in max 0 (100 - diff * 100 `div` 765) -- valor entre 0 e 100
 
--- Rendering function
+-- Função de renderização do jogo
 renderGame :: GameState -> Picture
 renderGame game =
   let (targetR, targetG, targetB) = targetColor game
-  in pictures
-       [ translate (-200) 0 $ color (rgbColor targetR targetG targetB) $ rectangleSolid 100 100
-       , translate (-200) (-150) $ color white $ scale 0.2 0.2 $ text ("Cor alvo: " ++ rgbToHex targetR targetG targetB)
-       , translate 100 0 $ color (rgbColor (redValue game) (greenValue game) (blueValue game)) $ rectangleSolid 100 100
-       , translate 100 (-150) $ color white $ scale 0.2 0.2 $ text ("Sua cor: " ++ rgbToHex (redValue game) (greenValue game) (blueValue game))
-       , if guessMade game
-           then translate 100 (-250) $ color white $ scale 0.2 0.2 $ text ("Proximidade: " ++ proximity game)
-           else blank
-       ]
+      (currentR, currentG, currentB) = (redValue game, greenValue game, blueValue game)
+      targetHex = rgbToHex targetR targetG targetB
+      currentHex = rgbToHex currentR currentG currentB
+      targetProximity = calculateProximity (targetR, targetG, targetB) (currentR, currentG, currentB)
+  in pictures $
+     case status game of
+       Playing ->
+         [ -- Quadrado alvo sem exibir o código RGB
+           translate (-200) 0 $ color (rgbColor targetR targetG targetB) $ rectangleSolid 100 100
+         , -- Código hexadecimal sendo editado pelo jogador
+           translate 100 (-150) $ color white $ scale 0.2 0.2 $ text ("Sua cor: " ++ currentHex)
+         ]
+       GameOver ->
+         [ -- Quadrado alvo
+           translate (-200) 0 $ color (rgbColor targetR targetG targetB) $ rectangleSolid 100 100
+         , -- Exibe o quadrado editado com a cor final definida
+           translate 100 0 $ color (rgbColor currentR currentG currentB) $ rectangleSolid 100 100
+         , -- Código hexadecimal que foi editado pelo jogador
+           translate 100 (-150) $ color white $ scale 0.2 0.2 $ text ("Sua cor: " ++ currentHex)
+         , -- Exibe o código RGB do alvo e a proximidade após o jogo terminar
+           translate (-200) (-150) $ color white $ scale 0.2 0.2 $ text ("Cor alvo: " ++ targetHex)
+         , translate 100 (-250) $ color white $ scale 0.2 0.2 $ text ("Proximidade: " ++ show targetProximity ++ "%")
+         ]
+       EndScreen ->
+         [ translate (-370) 50 $ color white $ scale 0.3 0.3 $ text "Pressione Enter para jogar novamente"
+         , translate (-270) (-50) $ color white $ scale 0.3 0.3 $ text "Ou pressione Esc para sair"
+        --  , translate (-100) (if selection game == 0 then 50 else (-50)) $
+        --    color white $ scale 0.3 0.3 $ text "->"  -- seta de seleção
+         ]
 
-
-
--- Function to update game state when key is pressed
+-- Função para lidar com o clique de Enter e finalizar o jogo
 handleInput :: Event -> GameState -> GameState
-handleInput (EventKey (Char 'r') Down _ _) game = game { redValue = min 255 (redValue game + 5) }
-handleInput (EventKey (Char 'f') Down _ _) game = game { redValue = max 0 (redValue game - 5) }
-handleInput (EventKey (Char 'g') Down _ _) game = game { greenValue = min 255 (greenValue game + 5) }
-handleInput (EventKey (Char 'v') Down _ _) game = game { greenValue = max 0 (greenValue game - 5) }
-handleInput (EventKey (Char 'b') Down _ _) game = game { blueValue = min 255 (blueValue game + 5) }
-handleInput (EventKey (Char 'n') Down _ _) game = game { blueValue = max 0 (blueValue game - 5) }
-handleInput (EventKey (SpecialKey KeyEnter) Down _ _) game =
-  let diff = colorDiff (redValue game, greenValue game, blueValue game) (targetColor game)
-  in game { guessMade = True, proximity = evaluateProximity diff }
+handleInput (EventKey (Char 'r') Down _ _) game
+  | status game == Playing = game { redValue = min 255 (redValue game + 5) }
+handleInput (EventKey (Char 'f') Down _ _) game
+  | status game == Playing = game { redValue = max 0 (redValue game - 5) }
+handleInput (EventKey (Char 'g') Down _ _) game
+  | status game == Playing = game { greenValue = min 255 (greenValue game + 5) }
+handleInput (EventKey (Char 'v') Down _ _) game
+  | status game == Playing = game { greenValue = max 0 (greenValue game - 5) }
+handleInput (EventKey (Char 'b') Down _ _) game
+  | status game == Playing = game { blueValue = min 255 (blueValue game + 5) }
+handleInput (EventKey (Char 'n') Down _ _) game
+  | status game == Playing = game { blueValue = max 0 (blueValue game - 5) }
+handleInput (EventKey (SpecialKey KeyEnter) Down _ _) game
+  | status game == Playing = game { guessMade = True, proximity = calculateProximity (targetColor game) (redValue game, greenValue game, blueValue game), status = GameOver }
+  | status game == GameOver = game { status = EndScreen }
+  | status game == EndScreen = initialState  -- reiniciar o jogo
+  -- | status game == EndScreen && selection game == 1 = game { status = EndScreen }  -- fechar o jogo
+handleInput (EventKey (SpecialKey KeyUp) Down _ _) game
+  | status game == EndScreen = game { selection = 0 }  -- selecionar "Jogar Novamente"
+handleInput (EventKey (SpecialKey KeyDown) Down _ _) game
+  | status game == EndScreen = game { selection = 1 }  -- selecionar "Sair"
 handleInput _ game = game
 
--- Main function
+-- Inicialização do estado do jogo
+initialState :: GameState
+initialState = GameState
+  { targetColor = (255, 0, 0) -- Exemplo de cor alvo
+  , redValue = 127
+  , greenValue = 127
+  , blueValue = 127
+  , guessMade = False
+  , proximity = 0
+  , status = Playing
+  , selection = 0
+  }
+
+-- Função main do jogo
 main :: IO ()
-main = play
-  (InWindow "Color Matching Game" (600, 400) (100, 100))
-  black
-  60
-  initialState
-  renderGame
-  handleInput
-  (const id) -- no need for updates based on time
+main = play window backgroundColor fps initialState renderGame handleInput updateGame
+  where
+    window = InWindow "Jogo de Adivinhar a Cor" (800, 600) (100, 100)
+    backgroundColor = black
+    fps = 60
+
+-- Função de atualização (mantida simples, pois o jogo é controlado por eventos)
+updateGame :: Float -> GameState -> GameState
+updateGame _ game = game

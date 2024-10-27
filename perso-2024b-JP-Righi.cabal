@@ -69,7 +69,8 @@ executable perso-2024b-JP-Righi
     -- Other library packages from which modules are imported.
     build-depends:    
         base ^>=4.17.2.1,
-        gloss
+        gloss,
+        random
 
     -- Directories containing source files.
     hs-source-dirs:   app

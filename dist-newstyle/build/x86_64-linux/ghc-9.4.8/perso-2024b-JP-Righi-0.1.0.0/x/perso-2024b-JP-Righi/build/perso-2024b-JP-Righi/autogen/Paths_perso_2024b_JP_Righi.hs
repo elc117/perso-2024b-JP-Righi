@@ -46,12 +46,12 @@ getBinDir, getLibDir, getDynLibDir, getDataDir, getLibexecDir, getSysconfDir :: 
 
 
 bindir, libdir, dynlibdir, datadir, libexecdir, sysconfdir :: FilePath
-bindir     = "/home/taura/.cabal/bin"
-libdir     = "/home/taura/.cabal/lib/x86_64-linux-ghc-9.4.8/perso-2024b-JP-Righi-0.1.0.0-inplace-perso-2024b-JP-Righi"
-dynlibdir  = "/home/taura/.cabal/lib/x86_64-linux-ghc-9.4.8"
-datadir    = "/home/taura/.cabal/share/x86_64-linux-ghc-9.4.8/perso-2024b-JP-Righi-0.1.0.0"
-libexecdir = "/home/taura/.cabal/libexec/x86_64-linux-ghc-9.4.8/perso-2024b-JP-Righi-0.1.0.0"
-sysconfdir = "/home/taura/.cabal/etc"
+bindir     = "/home/righi/.cabal/bin"
+libdir     = "/home/righi/.cabal/lib/x86_64-linux-ghc-9.4.8/perso-2024b-JP-Righi-0.1.0.0-inplace-perso-2024b-JP-Righi"
+dynlibdir  = "/home/righi/.cabal/lib/x86_64-linux-ghc-9.4.8"
+datadir    = "/home/righi/.cabal/share/x86_64-linux-ghc-9.4.8/perso-2024b-JP-Righi-0.1.0.0"
+libexecdir = "/home/righi/.cabal/libexec/x86_64-linux-ghc-9.4.8/perso-2024b-JP-Righi-0.1.0.0"
+sysconfdir = "/home/righi/.cabal/etc"
 
 getBinDir     = catchIO (getEnv "perso_2024b_JP_Righi_bindir")     (\_ -> return bindir)
 getLibDir     = catchIO (getEnv "perso_2024b_JP_Righi_libdir")     (\_ -> return libdir)
